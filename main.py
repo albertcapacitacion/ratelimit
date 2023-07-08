@@ -54,11 +54,12 @@ def ratelimit_general(request: Request, response: Response):
     """
    return HTMLResponse(content=respuesta_html, status_code=200)
 
-#por creditos
+#rate limit por cantidad de creditos
 @app.get("/vosno")
 def ratelimit_ip(request: Request):
+    #envia IP del dispositivo, maximos creditos para este endpoint
     tengo_creditos=limitar_porcreditos(get_remote_address,2)
     if tengo_creditos['call']==True:
         return PlainTextResponse("Bienvenidos!")
     else:
-        raise RateLimitExceeded        
+        return PlainTextResponse("Sin creditos disponibles")     
