@@ -4,7 +4,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi.responses import PlainTextResponse,HTMLResponse
 
-from .super_almacenamiento import limitar_porcreditos
+from super_almacenamiento import limitar_porcreditos
 
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
@@ -54,8 +54,11 @@ def ratelimit_general(request: Request, response: Response):
     """
    return HTMLResponse(content=respuesta_html, status_code=200)
 
-#por ip
+#por creditos
 @app.get("/vosno")
 def ratelimit_ip(request: Request):
-    return PlainTextResponse("Este es el home de la API")
-
+    tengo_creditos=limitar_porcreditos(get_remote_address,2)
+    if tengo_creditos['call']==True:
+        return PlainTextResponse("Bienvenidos!")
+    else:
+        raise RateLimitExceeded        
