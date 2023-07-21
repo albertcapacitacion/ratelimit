@@ -1,12 +1,33 @@
-from fastapi import FastAPI,Request,Response
+from fastapi import FastAPI,Request,Response,HTTPException,status
+from fastapi import Depends
 from slowapi import Limiter,_rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi.responses import PlainTextResponse,HTMLResponse
 
 from super_almacenamiento import limitar_porcreditos
+from redis_ratelimit import limitar_con_redis
 
+
+import redis
+
+#setup limiter via slowapi
 limiter = Limiter(key_func=get_remote_address)
+
+#Conectar con server Redis
+def get_redis():
+    # Verificar que esta corriendo localmente en consola
+    redis_conn = redis.Redis(host='localhost', port=6379, db=0)
+
+    try:
+        yield redis_conn
+    finally:
+        redis_conn.close()
+
+#crear cliente redis
+cliente_redis = redis.Redis(host="redis-server")
+
+#crear API
 app = FastAPI()
 
 #namespace interno de la API disponible para todas las rutas
@@ -20,7 +41,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 #el limite va DESPUES del decorator que controla la 
 
 #5 requests por minuto,respuesta en formato texto
-@app.get("/home")
+@app.get("/")
 @limiter.limit("5/minute")
 async def home(request: Request):
     return PlainTextResponse("Este es el home de la API")
@@ -63,3 +84,23 @@ def ratelimit_ip(request: Request):
         return PlainTextResponse("Bienvenidos!")
     else:
         return PlainTextResponse("Sin creditos disponibles")     
+
+#rate limiting con Redis como cache
+#repasar Dependencias en clase
+@app.get("/redis")
+def test(request: Request, redis=Depends(get_redis)):    
+  clientIp = request.client.host    
+  res = limitar_con_redis(redis,clientIp, 2)    
+  if res["call"]:        
+    return {            
+        "message": "Bienvenido",            
+        "ttl": res["ttl"]        
+        }    
+  else:       
+     raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,      
+        detail={       
+           "message": "Limite alcanzado",      
+           "ttl": res["ttl"]    
+           }
+        )
